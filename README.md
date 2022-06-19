@@ -14,7 +14,7 @@ A friendly Discord Bot to Create Private Voice Chats
 
 IN VC chat
 - [ ] Button to toggle locked State
-- [ ] Intractive ban/unban/kick (choose name from dropdown / autocomplete slash command (only participants of the VC shown))
+- [ ] Interactive ban/unban/kick (choose name from dropdown / autocomplete slash command (only participants of the VC shown))
 - [ ] Change name via input field
 - [ ] take ownership button
 - [ ] Ping when you join the VC (once a day)
