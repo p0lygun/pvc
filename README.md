@@ -5,12 +5,12 @@ A friendly Discord Bot to Create Private Voice Chats
 - [ ] Persistent Bans
 
 - [ ] Main Channel to Control the Creation of Channels
-  - [ ] Preset Names (2042, live stream and such)
-  - [ ] Custom Name
-    - [ ] Profanity Filter ?
-    - [ ] Reserved Keywords ?
-  - [ ] Start with already Locked VC
-  - [ ] Choose Region (and save or future Use)
+  - [x] Preset Names (2042, live stream and such)
+  - [x] Custom Name
+    - [x] Profanity Filter ?
+    - [x] Reserved Keywords ?
+  - [ ] ~~Start with already Locked VC~~
+  - [x] Choose Region (and save or future Use)
 
 IN VC chat
 - [ ] Button to toggle locked State
