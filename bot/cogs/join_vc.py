@@ -30,28 +30,39 @@ class JoinHandler(commands.Cog):
                 else:
                     vc_name = str(member)
 
-                overwrite = discord.PermissionOverwrite()
-                overwrite.manage_channels = True
-
                 tmp_vc = await member.guild.create_voice_channel(
                     name=vc_name,
-                    overwrites={member: overwrite},
+                    overwrites=after.channel.overwrites,
                     rtc_region=after.channel.rtc_region,
                     user_limit=after.channel.user_limit,
                     category=after.channel.category
                 )
+                await tmp_vc.set_permissions(member, manage_channels=True)
 
                 await member.move_to(tmp_vc)
 
                 cur = self.bot.con.get(user_id=member.id)
+                vc_id = None
                 if cur.rowcount:
                     vc_id = cur.fetchone()[0]
-                    if vc_id != tmp_vc.id:
-                        old_vc = member.guild.get_channel(vc_id)
-                        if old_vc and len(old_vc.members) == 0:
+
+                self.bot.con.insert(member.id, tmp_vc.id)
+                if vc_id is not None and vc_id != tmp_vc.id:
+                    old_vc = member.guild.get_channel(vc_id)
+                    if old_vc:
+                        members = old_vc.members
+                        if len(members) == 0:
                             logger.debug(f"Old VC for {member} with no members found.. Deleting")
                             await old_vc.delete()
-                self.bot.con.insert(member.id, tmp_vc.id)
+                        else:
+                            roles_dict = {member_: member_.top_role for member_ in members}
+                            max_user = next(iter(roles_dict))
+                            for m, r in roles_dict.items():
+                                if r > roles_dict[max_user]:
+                                    max_user = m
+                            self.bot.con.insert(user_id=max_user.id, channel_id=vc_id)
+                            await old_vc.send(f"Ownership of this Channel is Transferred to {max_user.mention}")
+                            await self.ui_manager.update_ui(vc_id, allow_ownership=False)
                 view = self.ui_manager.get_view(tmp_vc.id, timeout=None)
                 msg = await tmp_vc.send(
                     content=f"Manage VC settings here {member.mention}",
