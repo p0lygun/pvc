@@ -17,7 +17,11 @@ try:
     try:
         from bot.bot import PVCBot
 
-        bot_ = PVCBot(debug_guilds=[829265067073339403, 768972058566590474], con_=con)
+        bot_ = PVCBot(debug_guilds=[
+            829265067073339403,  # gala
+            768972058566590474,  # BFINDIA Test
+            870246147455877181,  # BFportal
+        ], con_=con)
         token = os.getenv("PVC_TOKEN", None)
         if token is None:
             raise ValueError("TOKEN not found, check env file")
