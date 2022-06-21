@@ -3,11 +3,13 @@ from discord.ext import commands
 from loguru import logger
 
 from ..bot import PVCBot
+from .manage_vc_ui import ManageUI
 
 
 class JoinHandler(commands.Cog):
     def __init__(self, bot_: PVCBot):
         self.bot = bot_
+        self.ui_manager = ManageUI(self.bot)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self,
@@ -49,6 +51,10 @@ class JoinHandler(commands.Cog):
                             logger.debug(f"Old VC for {member} with no members found.. Deleting")
                             await old_vc.delete()
                 self.bot.con.insert(member.id, tmp_vc.id)
+                await tmp_vc.send(
+                    content=f"Manage VC settings here {member.mention}",
+                    view=self.ui_manager.get_view(tmp_vc.id, timeout=None)
+                )
             return
 
         if before.channel is not None:
