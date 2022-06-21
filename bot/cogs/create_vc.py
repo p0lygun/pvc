@@ -21,6 +21,14 @@ def get_guild_main_vc(ctx: discord.AutocompleteContext):
         return []
 
 
+def filter_vc_type(ctx: discord.AutocompleteContext):
+    types_ = ["VC-NAME", "USERNAME"]
+    if ctx.interaction.guild.premium_tier > 0:
+        types_.append("ACTIVITY")
+
+    return types_
+
+
 class CreateVC(commands.Cog):
 
     def __init__(self, bot_: PVCBot):
@@ -41,9 +49,7 @@ class CreateVC(commands.Cog):
                         type_: Option(
                             str,
                             description="How the name of the created VC should be handled",
-                            autocomplete=discord.utils.basic_autocomplete(
-                                ["VC-NAME", "USERNAME"]
-                            )),
+                            autocomplete=discord.utils.basic_autocomplete(filter_vc_type)),
                         region: Option(str,
                                        description="Region in Which channel of this type should be made",
                                        autocomplete=discord.utils.basic_autocomplete(

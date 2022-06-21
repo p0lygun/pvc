@@ -25,6 +25,7 @@ class Button(discord.ui.Button):
             emoji=emoji,
             style=discord.ButtonStyle.url if url else style,
             custom_id=custom_id,
+            url=url,
             **kwargs
         )
         self.callback_ = callback
@@ -51,6 +52,28 @@ class NewNameInputModal(discord.ui.Modal):
         if new_name:
             await interaction.channel.edit(name=new_name)
         await interaction.response.defer()
+
+
+class ActivitySelector(discord.ui.Select):
+    def __init__(self, placeholder, callback_: callable):
+        options = [
+            discord.SelectOption(
+                label=" ".join(map(str.capitalize, value.split("_"))),
+                value=value
+            )
+            for value in discord.EmbeddedActivity._enum_member_names_
+            if not any(x in ["dev", "staging", "qa"] for x in value.split('_'))
+        ]
+        super(ActivitySelector, self).__init__(
+            placeholder=placeholder,
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+        self.callback_ = callback_
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.callback_(self.values[0], interaction)
 
 
 class UIView(discord.ui.View):
@@ -85,6 +108,10 @@ class UIView(discord.ui.View):
             custom_id=f"claim-{channel_id}",
             disabled=not allow_ownership
         ))
+        with self.bot.con.get_vc_data(channel_id=self.channel_id) as cur:
+            if cur.rowcount:
+                if self.channel.guild.premium_tier > 0 and cur.fetchone()[0] == 'ACTIVITY':
+                    self.add_item(ActivitySelector("Select a Activity", self.make_activity))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.custom_id == f'claim-{self.channel_id}' or interaction.user.id == self.owner_id:
@@ -119,6 +146,15 @@ class UIView(discord.ui.View):
         await interaction.response.send_message(f"{interaction.user.mention} is the new owner of {interaction.channel}")
         self.children[2].disabled = True
         await interaction.message.edit(view=self)
+
+    async def make_activity(self, value, interaction: discord.Interaction):
+        inv = await interaction.channel.create_activity_invite(activity=discord.EmbeddedActivity[value], max_age=0)
+        self.add_item(Button(
+            label="".join(map(str.capitalize, value.split("_"))),
+            url=inv.url
+        ))
+        await interaction.message.edit(view=self)
+        await interaction.response.defer()
 
 
 class ManageUI(commands.Cog):
