@@ -45,7 +45,8 @@ class ConnectionWrapper:
             CREATE TABLE IF NOT EXISTS vc_data (
             id serial PRIMARY KEY,
             channel_id bigint UNIQUE NOT NULL,
-            type VARCHAR (10) NOT NULL
+            type VARCHAR (10) NOT NULL,
+            guild_id bigint NOT NULL
             );
         """)
 
@@ -61,10 +62,15 @@ class ConnectionWrapper:
             WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
             """, commit=False)
 
-    def get_vc_data(self, channel_id: int):
-        return self.execute_query(f"""SELECT type from vc_data 
-        WHERE channel_id={channel_id}
-        """, commit=False)
+    def get_vc_data(self, channel_id: int | None = None, guild_id: int | None = None):
+        if channel_id:
+            return self.execute_query(f"""SELECT type from vc_data 
+            WHERE channel_id={channel_id}
+            """, commit=False)
+        elif guild_id:
+            return self.execute_query(f"""SELECT channel_id from vc_data 
+            WHERE guild_id={guild_id}
+            """, commit=False)
 
     def insert(self,
                user_id: int,
@@ -81,13 +87,18 @@ class ConnectionWrapper:
             on conflict (channel_id) do update set user_id={user_id}
             """)
 
-    def insert_main(self, channel_id: int, type_: str):
-        return self.execute_query(f"""INSERT INTO vc_data (channel_id, type) values({channel_id}, '{type_}')
+    def insert_main(self, channel_id: int, type_: str, guild_id: int):
+        return self.execute_query(f"""INSERT INTO vc_data (channel_id, type, guild_id)
+        values({channel_id},'{type_}', {guild_id})
         on conflict (channel_id) do nothing 
         """)
 
     def delete(self, user_id: int = None, channel_id: int = None, **kwargs):
-        if user_id or channel_id:
+        if kwargs.get('vc-data', None):
+            return self.execute_query(f"""DELETE from vc_data
+            WHERE channel_id={channel_id}
+            """)
+        elif user_id or channel_id:
             return self.execute_query(f"""DELETE from bot_data
             WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
             """)
