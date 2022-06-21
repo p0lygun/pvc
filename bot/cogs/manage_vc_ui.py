@@ -64,9 +64,9 @@ class UIView(discord.ui.View):
         super(UIView, self).__init__(timeout=timeout)
         self.channel_id = channel_id
         self.channel = self.bot.get_channel(self.channel_id)
-        cur = self.bot.con.get(channel_id=self.channel_id)
-        if cur.rowcount:
-            self.owner_id = cur.fetchone()[1]
+        with self.bot.con.get(channel_id=self.channel_id) as cur:
+            if cur.rowcount:
+                self.owner_id = cur.fetchone()[1]
 
         self.add_item(Button(
             label="Lock",
