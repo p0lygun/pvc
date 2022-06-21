@@ -13,8 +13,8 @@ A friendly Discord Bot to Create Private Voice Chats
   - [x] Choose Region (and save or future Use)
 
 IN VC chat
-- [ ] Button to toggle locked State
-- [ ] Interactive ban/unban/kick (choose name from dropdown / autocomplete slash command (only participants of the VC shown))
-- [ ] Change name via input field
+- [x] Button to toggle locked State
+- [ ] ~~Interactive ban/unban/kick (choose name from dropdown / autocomplete slash command (only participants of the VC shown))~~
+- [x] Change name via input field
 - [ ] take ownership button
-- [ ] Ping when you join the VC (once a day)
+- [x] Ping when you join the VC (once a day)
