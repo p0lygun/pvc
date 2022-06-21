@@ -66,18 +66,29 @@ class ConnectionWrapper:
         WHERE channel_id={channel_id}
         """, commit=False)
 
-    def insert(self, user_id: int, channel_id: int, table: Annotated[str, "bot_data", "no_owner"] = 'bot_data'):
-        return self.execute_query(f"""INSERT INTO {table} (user_id, channel_id) values({user_id}, {channel_id})
-        on conflict (user_id) do update set channel_id={channel_id}
-        """)
+    def insert(self,
+               user_id: int,
+               channel_id: int,
+               table: Annotated[str, "bot_data", "no_owner"] = 'bot_data',
+               update: str = 'channel_id'
+               ):
+        if update == 'channel_id':
+            return self.execute_query(f"""INSERT INTO {table} (user_id, channel_id) values({user_id}, {channel_id})
+            on conflict (user_id) do update set channel_id={channel_id}
+            """)
+        elif update == 'user_id':
+            return self.execute_query(f"""INSERT INTO {table} (user_id, channel_id) values({user_id}, {channel_id})
+            on conflict (channel_id) do update set user_id={user_id}
+            """)
 
     def insert_main(self, channel_id: int, type_: str):
         return self.execute_query(f"""INSERT INTO vc_data (channel_id, type) values({channel_id}, '{type_}')
         on conflict (channel_id) do nothing 
         """)
 
-    def delete(self, user_id: int = None, channel_id: int = None):
+    def delete(self, user_id: int = None, channel_id: int = None, **kwargs):
         if user_id or channel_id:
             return self.execute_query(f"""DELETE from bot_data
             WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
             """)
+

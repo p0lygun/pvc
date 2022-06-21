@@ -20,6 +20,7 @@ class JoinHandler(commands.Cog):
         if after.channel is not None:
             cid = after.channel.id
             cur = self.bot.con.get_vc_data(channel_id=cid)
+            # if joined a main channel
             if cur.rowcount:
                 type_ = cur.fetchone()[0]
                 logger.debug(type_)
@@ -47,15 +48,26 @@ class JoinHandler(commands.Cog):
                     vc_id = cur.fetchone()[0]
                     if vc_id != tmp_vc.id:
                         old_vc = member.guild.get_channel(vc_id)
-                        if len(old_vc.members) == 0:
+                        if old_vc and len(old_vc.members) == 0:
                             logger.debug(f"Old VC for {member} with no members found.. Deleting")
                             await old_vc.delete()
                 self.bot.con.insert(member.id, tmp_vc.id)
-                await tmp_vc.send(
+                view = self.ui_manager.get_view(tmp_vc.id, timeout=None)
+                msg = await tmp_vc.send(
                     content=f"Manage VC settings here {member.mention}",
-                    view=self.ui_manager.get_view(tmp_vc.id, timeout=None)
+                    view=view
                 )
-            return
+                view.msg = msg
+            else:
+                cur = self.bot.con.get(user_id=member.id)
+                info = cur.fetchone()
+                if cur.rowcount and info[0] == after.channel.id:
+                    await self.ui_manager.update_ui(info[0], allow_ownership=False)
+
+        if after.channel is None:
+            cur = self.bot.con.get(user_id=member.id)
+            if cur.rowcount:
+                await self.ui_manager.update_ui(cur.fetchone()[0])
 
         if before.channel is not None:
             cur = self.bot.con.get(channel_id=before.channel.id)
