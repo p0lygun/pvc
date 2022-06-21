@@ -57,7 +57,7 @@ class ConnectionWrapper:
 
     def get(self, user_id: int | None = None, channel_id: int | None = None):
         if user_id or channel_id:
-            return self.execute_query(f"""SELECT channel_id from bot_data 
+            return self.execute_query(f"""SELECT channel_id, user_id from bot_data 
             WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
             """, commit=False)
 
