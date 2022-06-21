@@ -53,7 +53,12 @@ class CreateVC(commands.Cog):
                         user_limit: Option(int,
                                            description="Number of members that can be in a voice channel",
                                            required=False
-                                           )
+                                           ),
+                        category: Option(discord.CategoryChannel,
+                                         description="Category under which the channel should be made",
+                                         required=False
+                                         )
+
                         ):
         logger.debug(f"Creating a {type_} type VC with name {name} "
                      f"in region {region if region else 'Automatic'}, with user_limit {user_limit}")
@@ -61,7 +66,8 @@ class CreateVC(commands.Cog):
         vc = await ctx.guild.create_voice_channel(
             name=name,
             rtc_region=discord.VoiceRegion[region] if region else None,
-            user_limit=user_limit
+            user_limit=user_limit,
+            category=category,
         )
         self.bot.con.insert_main(vc.id, type_, ctx.guild.id)
         await ctx.respond(f"Successfully Created Main {vc.mention}")
