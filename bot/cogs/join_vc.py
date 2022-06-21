@@ -17,7 +17,6 @@ class JoinHandler(commands.Cog):
                                     ):
         if after.channel is not None:
             cid = after.channel.id
-            logger.debug(f"{member} joined {after.channel.name}")
             cur = self.bot.con.get_vc_data(channel_id=cid)
             if cur.rowcount:
                 type_ = cur.fetchone()[0]
@@ -40,15 +39,24 @@ class JoinHandler(commands.Cog):
                 )
 
                 await member.move_to(tmp_vc)
+
+                cur = self.bot.con.get(user_id=member.id)
+                if cur.rowcount:
+                    vc_id = cur.fetchone()[0]
+                    if vc_id != tmp_vc.id:
+                        old_vc = member.guild.get_channel(vc_id)
+                        if len(old_vc.members) == 0:
+                            logger.debug(f"Old VC for {member} with no members found.. Deleting")
+                            await old_vc.delete()
                 self.bot.con.insert(member.id, tmp_vc.id)
             return
 
         if before.channel is not None:
-            cur = self.bot.con.get(user_id=member.id)
-            if cur.rowcount and cur.fetchone()[0] == before.channel.id:
+            cur = self.bot.con.get(channel_id=before.channel.id)
+            if cur.rowcount:
                 if len(before.channel.members) == 0:
                     await before.channel.delete()
-                    self.bot.con.delete(user_id=member.id)
+                    self.bot.con.delete(channel_id=before.channel.id)
 
 
 def setup(bot: PVCBot):
