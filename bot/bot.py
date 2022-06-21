@@ -1,12 +1,15 @@
+import discord
 from loguru import logger
 from discord.ext.commands import Bot
 
 from .utils.helper import project_base_path
 from .pgsql import ConnectionWrapper
 
+
 class PVCBot(Bot):
     def __init__(self, con_: ConnectionWrapper,  **options):
-        super().__init__(**options)
+        intents = discord.Intents(voice_states=True, guilds=True)
+        super().__init__(intents=intents, **options)
         self.con = con_
         self.cogs_list = [
             f"bot.cogs.{i.stem}"
