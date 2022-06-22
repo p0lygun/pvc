@@ -46,7 +46,8 @@ class ConnectionWrapper:
             id serial PRIMARY KEY,
             channel_id bigint UNIQUE NOT NULL,
             type VARCHAR (10) NOT NULL,
-            guild_id bigint NOT NULL
+            guild_id bigint NOT NULL,
+            name_format varchar (50)
             );
         """)
 
@@ -62,34 +63,30 @@ class ConnectionWrapper:
             WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
             """, commit=False)
 
-    def get_vc_data(self, channel_id: int | None = None, guild_id: int | None = None):
-        if channel_id:
-            return self.execute_query(f"""SELECT type from vc_data 
-            WHERE channel_id={channel_id}
-            """, commit=False)
-        elif guild_id:
-            return self.execute_query(f"""SELECT channel_id from vc_data 
-            WHERE guild_id={guild_id}
-            """, commit=False)
+    def get_vc_data(self, where: tuple, get: str):
+        if len(where) != 2:
+            raise ValueError("Invalid key mapping passed")
+        return self.execute_query(f"""SELECT {get} from vc_data 
+        WHERE {where[0]}={where[1]}
+        """, commit=False)
 
     def insert(self,
                user_id: int,
                channel_id: int,
-               table: Annotated[str, "bot_data", "no_owner"] = 'bot_data',
                update: str = 'channel_id'
                ):
         if update == 'channel_id':
-            return self.execute_query(f"""INSERT INTO {table} (user_id, channel_id) values({user_id}, {channel_id})
+            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id) values({user_id}, {channel_id})
             on conflict (user_id) do update set channel_id={channel_id}
             """)
         elif update == 'user_id':
-            return self.execute_query(f"""INSERT INTO {table} (user_id, channel_id) values({user_id}, {channel_id})
+            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id) values({user_id}, {channel_id})
             on conflict (channel_id) do update set user_id={user_id}
             """)
 
-    def insert_main(self, channel_id: int, type_: str, guild_id: int):
-        return self.execute_query(f"""INSERT INTO vc_data (channel_id, type, guild_id)
-        values({channel_id},'{type_}', {guild_id})
+    def insert_main(self, channel_id: int, type_: str, guild_id: int, name_format: str = None):
+        return self.execute_query(f"""INSERT INTO vc_data (channel_id, type, guild_id, name_format)
+        values({channel_id},'{type_}', {guild_id}, '{name_format if name_format else 'NULL'}')
         on conflict (channel_id) do nothing 
         """)
 
@@ -102,4 +99,3 @@ class ConnectionWrapper:
             return self.execute_query(f"""DELETE from bot_data
             WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
             """)
-
