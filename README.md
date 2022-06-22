@@ -18,3 +18,11 @@ IN VC chat
 - [x] Change name via input field
 - [ ] take ownership button
 - [x] Ping when you join the VC (once a day)
+
+## Custom Name Format
+must be a string of len <= 50, 
+keyword available
+$self$ -> name of the main vc
+$user$ -> username (gala)
+$tag$ -> tag of the user (gala#4315, the number after #, 4315)
+$rmoji$ -> random emoji
