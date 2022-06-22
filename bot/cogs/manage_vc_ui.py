@@ -108,7 +108,7 @@ class UIView(discord.ui.View):
             custom_id=f"claim-{channel_id}",
             disabled=not allow_ownership
         ))
-        with self.bot.con.get_vc_data(channel_id=self.channel_id) as cur:
+        with self.bot.con.get_vc_data(('channel_id', self.channel_id), 'type') as cur:
             if cur.rowcount:
                 if self.channel.guild.premium_tier > 0 and cur.fetchone()[0] == 'ACTIVITY':
                     self.add_item(ActivitySelector("Select a Activity", self.make_activity))

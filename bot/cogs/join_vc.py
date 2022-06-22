@@ -4,6 +4,7 @@ from loguru import logger
 
 from ..bot import PVCBot
 from .manage_vc_ui import ManageUI
+from ..utils.helper import random_emoji
 
 
 class JoinHandler(commands.Cog):
@@ -19,14 +20,29 @@ class JoinHandler(commands.Cog):
                                     ):
         if after.channel is not None:
             cid = after.channel.id
-            with self.bot.con.get_vc_data(channel_id=cid) as cur:
+            with self.bot.con.get_vc_data(('channel_id', cid), 'type,name_format') as cur:
                 # if joined a main channel
                 if cur.rowcount:
-                    type_ = cur.fetchone()[0]
-                    logger.debug(type_)
+                    name_format: str
+                    type_, name_format = cur.fetchone()
                     if type_ == "VC-NAME":
-                        logger.debug("Creating New VC with type VC-NAME")
                         vc_name = after.channel.name
+                    elif type_ == "CUSTOM":
+                        if name_format:
+                            vc_name = name_format.replace(
+                                "$user$", member.name
+                            ).replace(
+                                "$tag$",
+                                str(member.discriminator)
+                            ).replace(
+                                "$rmoji$",
+                                random_emoji()
+                            ).replace(
+                                "$self$",
+                                after.channel.name
+                            )
+                        else:
+                            vc_name = str(member)
                     else:
                         vc_name = str(member)
 

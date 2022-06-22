@@ -14,7 +14,7 @@ async def is_admin(ctx):
 
 def get_guild_main_vc(ctx: discord.AutocompleteContext):
     bot = ctx.bot
-    cur = bot.con.get_vc_data(guild_id=ctx.interaction.guild.id)
+    cur = bot.con.get_vc_data(('guild_id',ctx.interaction.guild.id), 'channel_id')
     if cur.rowcount:
         return [bot.get_channel(channel_id) for channel_id in cur.fetchall()]
     else:
@@ -25,7 +25,7 @@ def filter_vc_type(ctx: discord.AutocompleteContext):
     types_ = ["VC-NAME", "USERNAME"]
     if ctx.interaction.guild.premium_tier > 0:
         types_.append("ACTIVITY")
-
+    types_.append("CUSTOM")
     return types_
 
 
@@ -63,11 +63,22 @@ class CreateVC(commands.Cog):
                         category: Option(discord.CategoryChannel,
                                          description="Category under which the channel should be made",
                                          required=False
-                                         )
+                                         ),
+                        custom_name: Option(str,
+                                            description="Custom format that will be used to name the child VCs",
+                                            required=False,
+                                            )
 
                         ):
         logger.debug(f"Creating a {type_} type VC with name {name} "
                      f"in region {region if region else 'Automatic'}, with user_limit {user_limit}")
+
+        if type_ == "CUSTOM" and custom_name is None:
+            await ctx.interaction.response.send_message(
+                "Failed to create CUSTOM type VC, as custom name format is not provided",
+                delete_after=10
+            )
+            return
 
         vc = await ctx.guild.create_voice_channel(
             name=name,
@@ -75,7 +86,7 @@ class CreateVC(commands.Cog):
             user_limit=user_limit,
             category=category,
         )
-        self.bot.con.insert_main(vc.id, type_, ctx.guild.id)
+        self.bot.con.insert_main(vc.id, type_, ctx.guild.id, custom_name)
         await ctx.respond(f"Successfully Created Main {vc.mention}")
 
     @delete.command(name='vc', description="Deletes the provided VC")
@@ -88,16 +99,16 @@ class CreateVC(commands.Cog):
             await ctx.interaction.response.send_message("Not Valid ID")
             return
 
-        cur = self.bot.con.get_vc_data(guild_id=ctx.guild_id)
-        if cur.rowcount:
-            if id_ in cur.fetchall()[0]:
-                chal = self.bot.get_channel(id_)
-                await chal.delete()
-                self.bot.con.delete(channel_id=id_, vc_data=True)
-                logger.debug(f"Successfully deleted {chal}")
-                await ctx.interaction.response.send_message(f"Deleted {chal.name}")
-        else:
-            await ctx.interaction.response.send_message("No VC for your guild in database")
+        with self.bot.con.get_vc_data(('guild_id', ctx.guild_id), 'channel_id') as cur:
+            if cur.rowcount:
+                if any(id_ == row[0] for row in cur.fetchall()):
+                    chal = self.bot.get_channel(id_)
+                    await chal.delete()
+                    self.bot.con.delete(channel_id=id_, vc_data=True)
+                    logger.debug(f"Successfully deleted {chal}")
+                    await ctx.interaction.response.send_message(f"Deleted {chal.name}")
+            else:
+                await ctx.interaction.response.send_message("No VC for your guild in database")
 
 
 def setup(bot):
