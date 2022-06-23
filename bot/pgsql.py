@@ -11,7 +11,7 @@ class ConnectionWrapper:
             database="bot_pvc_db",
             user="postgres",
             password="postgres",
-            host="127.0.0.1",
+            host="0.0.0.0",
             port="5432"
         )
         logger.debug(
