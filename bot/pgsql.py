@@ -1,6 +1,6 @@
 import psycopg2
 from loguru import logger
-from typing import Annotated
+import os
 
 
 class ConnectionWrapper:
@@ -11,7 +11,7 @@ class ConnectionWrapper:
             database="bot_pvc_db",
             user="postgres",
             password="postgres",
-            host="0.0.0.0",
+            host=os.getenv("PG_HOST", "db"),
             port="5432"
         )
         logger.debug(
