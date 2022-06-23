@@ -1,7 +1,6 @@
 FROM python:3.10-slim-buster
 RUN apt-get update \
-    && apt-get -y install libpq-dev gcc \
-    && pip install psycopg2
+    && apt-get -y install libpq-dev gcc git
 
 WORKDIR /app
 COPY . .
