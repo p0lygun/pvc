@@ -8,7 +8,7 @@ on:
 
 env:
   # Image name
-  IMAGE_NAME: pvc
+  IMAGE_NAME: bot
 
 
 jobs:
