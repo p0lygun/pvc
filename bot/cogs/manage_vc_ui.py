@@ -169,9 +169,7 @@ class ManageUI(commands.Cog):
         with self.bot.con.get(channel_id=channel_id) as cur:
             if cur.rowcount:
                 info = cur.fetchone()
-                logger.info(info)
                 msg = self.bot.get_channel(info[0]).get_partial_message(info[-1])
-                logger.debug(f"{msg.id}, {msg.jump_url}")
                 view = UIView(self.bot, channel_id=channel_id, timeout=None, allow_ownership=allow_ownership)
                 await msg.edit(view=view)
 
