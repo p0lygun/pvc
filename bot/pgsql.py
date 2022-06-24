@@ -1,4 +1,7 @@
+from typing import Any
+
 import psycopg2
+from psycopg2 import sql
 from loguru import logger
 import os
 
@@ -26,9 +29,9 @@ class ConnectionWrapper:
         logger.critical("Unable to Import psycopg2")
         raise
 
-    def execute_query(self, query: str, commit: bool = True) -> psycopg2.extensions.cursor:
+    def execute_query(self, query: str | sql.Composable, commit: bool = True) -> psycopg2.extensions.cursor:
         cur = self.con.cursor()
-        cur.execute(query.strip())
+        cur.execute(query)
         if commit:
             self.con.commit()
         return cur
@@ -38,7 +41,8 @@ class ConnectionWrapper:
             CREATE TABLE IF NOT EXISTS bot_data (
             id serial PRIMARY KEY,
             user_id bigint UNIQUE NOT NULL,
-            channel_id bigint UNIQUE NOT NULL
+            channel_id bigint UNIQUE NOT NULL,
+            msg_id bigint UNIQUE NOT NULL
             );
         """)
         self.execute_query("""
@@ -57,11 +61,17 @@ class ConnectionWrapper:
         except psycopg2.errors.UndefinedTable:
             logger.debug("Table Does not exits.. skipping")
 
-    def get(self, user_id: int | None = None, channel_id: int | None = None):
-        if user_id or channel_id:
-            return self.execute_query(f"""SELECT channel_id, user_id from bot_data 
-            WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
-            """, commit=False)
+    def get(self, user_id: int | None = None, channel_id: int | None = None, msg_id: int | None = None, all_: bool = False) -> psycopg2.extensions.cursor:
+        execute_sql = ''
+        if all_:
+            execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data"""
+
+        if user_id or channel_id or msg_id:
+            execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data 
+            WHERE {'user_id' if user_id else 'channel_id' if channel_id else 'msg_id'}={user_id if user_id else channel_id if channel_id else msg_id}
+            """
+        if execute_sql:
+            return self.execute_query(execute_sql, commit=False)
 
     def get_vc_data(self, where: tuple, get: str):
         if len(where) != 2:
@@ -73,14 +83,15 @@ class ConnectionWrapper:
     def insert(self,
                user_id: int,
                channel_id: int,
+               msg_id: int | None = None,
                update: str = 'channel_id'
                ):
         if update == 'channel_id':
-            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id) values({user_id}, {channel_id})
+            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
             on conflict (user_id) do update set channel_id={channel_id}
             """)
         elif update == 'user_id':
-            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id) values({user_id}, {channel_id})
+            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
             on conflict (channel_id) do update set user_id={user_id}
             """)
 
@@ -89,6 +100,23 @@ class ConnectionWrapper:
         values({channel_id},'{type_}', {guild_id}, '{name_format if name_format else 'NULL'}')
         on conflict (channel_id) do nothing 
         """)
+
+    def update(self, table: str, where: tuple[str, Any], **kwargs):
+        update_fields = []
+        for column, value in kwargs.items():
+            update_fields.append(sql.SQL("=").join(
+                    [sql.Identifier(str(column)), sql.Literal(value)]
+            ))
+
+        query = sql.SQL(
+            """UPDATE {table} SET {update_fields} where {condition}"""
+        ).format(
+            table=sql.Identifier(table),
+            update_fields=sql.SQL(',').join(update_fields),
+            condition=sql.SQL('=').join([sql.Identifier(where[0]), sql.Literal(where[1])])
+        )
+        logger.debug(query.as_string(self.con))
+        return self.execute_query(query)
 
     def delete(self, user_id: int = None, channel_id: int = None, **kwargs):
         if kwargs.get('vc-data', None):
