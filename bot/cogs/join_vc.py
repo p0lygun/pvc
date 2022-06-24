@@ -62,7 +62,14 @@ class JoinHandler(commands.Cog):
                         if cur.rowcount:
                             vc_id = cur.fetchone()[0]
 
-                    self.bot.con.insert(member.id, tmp_vc.id)
+                    self.bot.con.insert(member.id, tmp_vc.id, msg_id=None)
+                    view = self.ui_manager.get_view(tmp_vc.id, timeout=None)
+                    msg = await tmp_vc.send(
+                        content=f"Manage VC settings here {member.mention}",
+                        view=view
+                    )
+                    view.msg = msg
+                    self.bot.con.update('bot_data', ('user_id', member.id), msg_id=msg.id)
                     if vc_id is not None and vc_id != tmp_vc.id:
                         old_vc = member.guild.get_channel(vc_id)
                         if old_vc:
@@ -76,15 +83,9 @@ class JoinHandler(commands.Cog):
                                 for m, r in roles_dict.items():
                                     if r > roles_dict[max_user]:
                                         max_user = m
-                                self.bot.con.insert(user_id=max_user.id, channel_id=vc_id)
+                                self.bot.con.insert(user_id=max_user.id, channel_id=vc_id, msg_id=msg.id)
                                 await old_vc.send(f"Ownership of this Channel is Transferred to {max_user.mention}")
                                 await self.ui_manager.update_ui(vc_id, allow_ownership=False)
-                    view = self.ui_manager.get_view(tmp_vc.id, timeout=None)
-                    msg = await tmp_vc.send(
-                        content=f"Manage VC settings here {member.mention}",
-                        view=view
-                    )
-                    view.msg = msg
                 else:
                     cur = self.bot.con.get(user_id=member.id)
                     info = cur.fetchone()
@@ -94,7 +95,9 @@ class JoinHandler(commands.Cog):
         if after.channel is None:
             with self.bot.con.get(user_id=member.id) as cur:
                 if cur.rowcount:
-                    await self.ui_manager.update_ui(cur.fetchone()[0])
+                    info = cur.fetchone()
+                    logger.debug(info)
+                    await self.ui_manager.update_ui(info[0])
         if before.channel is not None:
             with self.bot.con.get(channel_id=before.channel.id) as cur:
                 if cur.rowcount:
