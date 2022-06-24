@@ -61,7 +61,8 @@ class ConnectionWrapper:
         except psycopg2.errors.UndefinedTable:
             logger.debug("Table Does not exits.. skipping")
 
-    def get(self, user_id: int | None = None, channel_id: int | None = None, msg_id: int | None = None, all_: bool = False) -> psycopg2.extensions.cursor:
+    def get(self, user_id: int | None = None, channel_id: int | None = None, msg_id: int | None = None,
+            all_: bool = False) -> psycopg2.extensions.cursor:
         execute_sql = ''
         if all_:
             execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data"""
@@ -87,11 +88,13 @@ class ConnectionWrapper:
                update: str = 'channel_id'
                ):
         if update == 'channel_id':
-            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
+            return self.execute_query(
+                f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
             on conflict (user_id) do update set channel_id={channel_id}
             """)
         elif update == 'user_id':
-            return self.execute_query(f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
+            return self.execute_query(
+                f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
             on conflict (channel_id) do update set user_id={user_id}
             """)
 
@@ -101,22 +104,41 @@ class ConnectionWrapper:
         on conflict (channel_id) do nothing 
         """)
 
-    def update(self, table: str, where: tuple[str, Any], **kwargs):
+    def update(self, table: str, where: tuple[str, Any], returning: str | None = None, **kwargs):
         update_fields = []
         for column, value in kwargs.items():
             update_fields.append(sql.SQL("=").join(
-                    [sql.Identifier(str(column)), sql.Literal(value)]
+                [sql.Identifier(str(column)), sql.Literal(value)]
             ))
 
+        format_kwargs = {
+            'table': sql.Identifier(table),
+            'update_fields': sql.SQL(',').join(update_fields),
+            'condition': sql.SQL('=').join([sql.Identifier(where[0]), sql.Literal(where[1])]),
+        }
+        if returning:
+            format_kwargs.update({'returning': sql.Identifier(returning)})
+
         query = sql.SQL(
-            """UPDATE {table} SET {update_fields} where {condition}"""
+            """UPDATE {table} SET {update_fields} where {condition} """
+            + ("RETURNING (SELECT {returning} FROM {table} WHERE {condition})" if returning else '')
+        ).format(**format_kwargs)
+
+        return self.execute_query(query)
+
+    def exists(self, where: tuple[str, Any],  table: str = 'bot_data') -> bool:
+        # SELECT exists (SELECT 1 FROM table WHERE column = <value> LIMIT 1);
+        query = sql.SQL(
+            "SELECT exists (SELECT 1 FROM {table} WHERE {condition} LIMIT 1)"
         ).format(
             table=sql.Identifier(table),
-            update_fields=sql.SQL(',').join(update_fields),
-            condition=sql.SQL('=').join([sql.Identifier(where[0]), sql.Literal(where[1])])
+            condition=sql.SQL('=').join([
+                sql.Identifier(where[0]),
+                sql.Literal(where[1])
+            ])
         )
-        logger.debug(query.as_string(self.con))
-        return self.execute_query(query)
+        with self.execute_query(query, commit=False) as curr:
+            return curr.fetchone()[0]
 
     def delete(self, user_id: int = None, channel_id: int = None, **kwargs):
         if kwargs.get('vc-data', None):
