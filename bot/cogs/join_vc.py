@@ -69,7 +69,10 @@ class JoinHandler(commands.Cog):
                         view=view
                     )
                     view.msg = msg
-                    self.bot.con.update('bot_data', ('user_id', member.id), msg_id=msg.id)
+                    with self.bot.con.update('bot_data', ('user_id', member.id), msg_id=msg.id, returning='msg_id') as curr:
+                        if curr.rowcount:
+                            logger.debug(curr)
+                            old_msg_id = curr.fetchone()[0]
                     if vc_id is not None and vc_id != tmp_vc.id:
                         old_vc = member.guild.get_channel(vc_id)
                         if old_vc:
@@ -78,12 +81,16 @@ class JoinHandler(commands.Cog):
                                 logger.debug(f"Old VC for {member} with no members found.. Deleting")
                                 await old_vc.delete()
                             else:
-                                roles_dict = {member_: member_.top_role for member_ in members}
+                                member_: discord.Member
+                                roles_dict = {
+                                    member_: member_.top_role for member_ in members
+                                    if not self.bot.con.exists(('user_id', member_.id))
+                                }
                                 max_user = next(iter(roles_dict))
                                 for m, r in roles_dict.items():
                                     if r > roles_dict[max_user]:
                                         max_user = m
-                                self.bot.con.insert(user_id=max_user.id, channel_id=vc_id, msg_id=msg.id)
+                                self.bot.con.insert(user_id=max_user.id, channel_id=vc_id, msg_id=old_msg_id)
                                 await old_vc.send(f"Ownership of this Channel is Transferred to {max_user.mention}")
                                 await self.ui_manager.update_ui(vc_id, allow_ownership=False)
                 else:
