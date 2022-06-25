@@ -62,7 +62,7 @@ class JoinHandler(commands.Cog):
                         if cur.rowcount:
                             vc_id = cur.fetchone()[0]
 
-                    self.bot.con.insert(member.id, tmp_vc.id, msg_id=None)
+                    self.bot.con.insert(member.id, tmp_vc.id, cid, msg_id=None,)
                     view = self.ui_manager.get_view(tmp_vc.id, timeout=None)
                     msg = await tmp_vc.send(
                         content=f"Manage VC settings here {member.mention}",
@@ -89,7 +89,12 @@ class JoinHandler(commands.Cog):
                                 for m, r in roles_dict.items():
                                     if r > roles_dict[max_user]:
                                         max_user = m
-                                self.bot.con.insert(user_id=max_user.id, channel_id=vc_id, msg_id=old_msg_id)
+                                self.bot.con.insert(
+                                    user_id=max_user.id,
+                                    channel_id=vc_id,
+                                    parent_channel_id=cid,
+                                    msg_id=old_msg_id
+                                )
                                 await old_vc.send(f"Ownership of this Channel is Transferred to {max_user.mention}")
                                 await self.ui_manager.update_ui(vc_id, allow_ownership=False)
                 # moved from a main voice channel
