@@ -1,3 +1,4 @@
+![Docker Build](https://img.shields.io/github/workflow/status/p0lygun/pvc/Docker%20Build?label=Docker%20Build&style=for-the-badge)
 # Private Voice Chat
 A friendly Discord Bot to Create Private Voice Chats
 
