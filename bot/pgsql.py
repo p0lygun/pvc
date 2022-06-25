@@ -102,10 +102,11 @@ class ConnectionWrapper:
                     )
                 }
             )
-        # logger.debug(format_kwargs)
-        query = sql.SQL("SELECT {columns} FROM {table} " + ("where {conditions}" if conditions else '')).format(
-            **format_kwargs)
-        # logger.debug(query.as_string(self.con))
+        query = sql.SQL(
+            "SELECT {columns} FROM {table} " +
+            ("where {conditions}" if conditions else '')
+        ).format(**format_kwargs)
+
         return self.execute_query(query, commit=False)
 
     def get_vc_data(self, columns: tuple[str, ...],
