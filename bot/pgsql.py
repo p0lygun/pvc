@@ -55,31 +55,43 @@ class ConnectionWrapper:
             );
         """)
 
-    def drop_table(self):
+    def __drop_table(self):
         try:
             self.execute_query("""DROP TABLE bot_data""")
         except psycopg2.errors.UndefinedTable:
             logger.debug("Table Does not exits.. skipping")
 
-    def get(self, user_id: int | None = None, channel_id: int | None = None, msg_id: int | None = None,
-            all_: bool = False) -> psycopg2.extensions.cursor:
-        execute_sql = ''
-        if all_:
-            execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data"""
+    def get(self, columns: tuple[str], condition: tuple[str, str], table: str = 'bot_data') -> psycopg2.extensions.Cursor:
+        """
+        A generic get function to get values from db
 
-        if user_id or channel_id or msg_id:
-            execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data 
-            WHERE {'user_id' if user_id else 'channel_id' if channel_id else 'msg_id'}={user_id if user_id else channel_id if channel_id else msg_id}
-            """
-        if execute_sql:
-            return self.execute_query(execute_sql, commit=False)
+        :param columns:
+        :param condition:
+        :param table:
+        :return: psycopg2.Cursor
+        """
+        query = sql.SQL(
+            "SELECT {columns} FROM {table} where {condition}"
+        ).format(
+            columns=sql.SQL(',').join(
+                [sql.Identifier(i) for i in columns]
+            ),
+            table=sql.Identifier(table),
+            condition=sql.SQL('=').join(
+                [sql.Identifier(condition[0]), sql.Literal(condition[1])]
+            )
+        )
+        return self.execute_query(query, commit=False)
 
-    def get_vc_data(self, where: tuple, get: str):
-        if len(where) != 2:
-            raise ValueError("Invalid key mapping passed")
-        return self.execute_query(f"""SELECT {get} from vc_data 
-        WHERE {where[0]}={where[1]}
-        """, commit=False)
+    def get_vc_data(self, columns: tuple[str], condition: tuple[str, str]) -> psycopg2.extensions.Cursor:
+        """
+        A generic function to get values from table vc_data
+
+        :param columns:
+        :param condition:
+        :return:
+        """
+        return self.get(columns, condition, 'vc_data')
 
     def insert(self,
                user_id: int,
