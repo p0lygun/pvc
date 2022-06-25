@@ -21,8 +21,8 @@ IN VC chat
 
 ## Custom Name Format
 must be a string of len <= 50, 
-keyword available
-$self$ -> name of the main vc
-$user$ -> username (gala)
-$tag$ -> tag of the user (gala#4315, the number after #, 4315)
-$rmoji$ -> random emoji
+keyword available  
+$self$ -> name of the main vc  
+$user$ -> username (gala)  
+$tag$ -> tag of the user (gala#4315, the number after #, 4315)  
+$rmoji$ -> random emoji  
