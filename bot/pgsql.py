@@ -61,29 +61,33 @@ class ConnectionWrapper:
         except psycopg2.errors.UndefinedTable:
             logger.debug("Table Does not exits.. skipping")
 
-    def get(self, columns: tuple[str], condition: tuple[str, str], table: str = 'bot_data') -> psycopg2.extensions.Cursor:
+    def get(self, columns: tuple[str, ...], conditions: dict[str, Any] | None = None, table: str = 'bot_data') -> psycopg2.extensions.cursor:
         """
         A generic get function to get values from db
 
         :param columns:
-        :param condition:
+        :param conditions:
         :param table:
         :return: psycopg2.Cursor
         """
-        query = sql.SQL(
-            "SELECT {columns} FROM {table} where {condition}"
-        ).format(
-            columns=sql.SQL(',').join(
-                [sql.Identifier(i) for i in columns]
-            ),
-            table=sql.Identifier(table),
-            condition=sql.SQL('=').join(
-                [sql.Identifier(condition[0]), sql.Literal(condition[1])]
+
+        format_kwargs = {
+            'columns': sql.SQL(',').join([sql.Identifier(i) for i in columns]),
+            'table': sql.Identifier(table),
+        }
+        if conditions:
+            format_kwargs.update(
+                {
+                    'conditions': sql.SQL(',').join(
+                        [sql.SQL('=').join((key, value)) for key, value in conditions.items()]
+                    )
+                }
             )
-        )
+        query = sql.SQL("SELECT {columns} FROM {table} " + ("where {conditions}" if conditions else '')).format(**format_kwargs)
+        logger.debug(query.as_string(self.con))
         return self.execute_query(query, commit=False)
 
-    def get_vc_data(self, columns: tuple[str], condition: tuple[str, str]) -> psycopg2.extensions.Cursor:
+    def get_vc_data(self, columns: tuple[str, ...], condition: dict[str, Any] | None = None) -> psycopg2.extensions.cursor:
         """
         A generic function to get values from table vc_data
 
