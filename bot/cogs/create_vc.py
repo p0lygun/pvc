@@ -14,7 +14,7 @@ async def is_admin(ctx):
 
 def get_guild_main_vc(ctx: discord.AutocompleteContext):
     bot = ctx.bot
-    cur = bot.con.get_vc_data(('guild_id',ctx.interaction.guild.id), 'channel_id')
+    cur = bot.con.get_vc_data(('channel_id',), {'guild_id': ctx.interaction.guild.id})
     if cur.rowcount:
         return [bot.get_channel(channel_id) for channel_id in cur.fetchall()]
     else:
@@ -99,16 +99,14 @@ class CreateVC(commands.Cog):
             await ctx.interaction.response.send_message("Not Valid ID")
             return
 
-        with self.bot.con.get_vc_data(('guild_id', ctx.guild_id), 'channel_id') as cur:
-            if cur.rowcount:
-                if any(id_ == row[0] for row in cur.fetchall()):
-                    chal = self.bot.get_channel(id_)
-                    await chal.delete()
-                    self.bot.con.delete(table='vc_data', conditions={'channel_id': id_})
-                    logger.debug(f"Successfully deleted {chal}")
-                    await ctx.interaction.response.send_message(f"Deleted {chal.name}")
-            else:
-                await ctx.interaction.response.send_message("No VC for your guild in database")
+        if self.bot.con.exists(('channel_id', id_), 'vc_data'):
+            chal = self.bot.get_channel(id_)
+            await chal.delete()
+            self.bot.con.delete(table='vc_data', conditions={'channel_id': id_})
+            logger.debug(f"Successfully deleted {chal}")
+            await ctx.interaction.response.send_message(f"Deleted {chal.name}")
+        else:
+            await ctx.interaction.response.send_message("No VC for your guild in database")
 
 
 def setup(bot):

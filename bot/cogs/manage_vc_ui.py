@@ -87,9 +87,9 @@ class UIView(discord.ui.View):
         super(UIView, self).__init__(timeout=timeout)
         self.channel_id = channel_id
         self.channel = self.bot.get_channel(self.channel_id)
-        with self.bot.con.get(channel_id=self.channel_id) as cur:
+        with self.bot.con.get(("user_id",), {'channel_id': self.channel_id}) as cur:
             if cur.rowcount:
-                self.owner_id = cur.fetchone()[1]
+                self.owner_id = cur.fetchone()[0]
 
         self.add_item(Button(
             label="Lock",
@@ -108,7 +108,7 @@ class UIView(discord.ui.View):
             custom_id=f"claim-{channel_id}",
             disabled=not allow_ownership
         ))
-        with self.bot.con.get_vc_data(('channel_id', self.channel_id), 'type') as cur:
+        with self.bot.con.get_vc_data(('type',), {'channel_id': self.channel_id}) as cur:
             if cur.rowcount:
                 if self.channel.guild.premium_tier > 0 and cur.fetchone()[0] == 'ACTIVITY':
                     self.add_item(ActivitySelector("Select a Activity", self.make_activity))
@@ -142,6 +142,7 @@ class UIView(discord.ui.View):
             channel_id=interaction.channel_id,
             msg_id=interaction.message.id,
             update='user_id'
+
         )
         self.owner_id = interaction.user.id
         await interaction.response.send_message(f"{interaction.user.mention} is the new owner of {interaction.channel}")
@@ -166,10 +167,10 @@ class ManageUI(commands.Cog):
         return UIView(self.bot, channel_id, timeout)
 
     async def update_ui(self, channel_id: int, allow_ownership: bool = True):
-        with self.bot.con.get(channel_id=channel_id) as cur:
+        with self.bot.con.get(('msg_id',), {'channel_id': channel_id}) as cur:
             if cur.rowcount:
                 info = cur.fetchone()
-                msg = self.bot.get_channel(info[0]).get_partial_message(info[-1])
+                msg = self.bot.get_channel(channel_id).get_partial_message(info[0])
                 view = UIView(self.bot, channel_id=channel_id, timeout=None, allow_ownership=allow_ownership)
                 await msg.edit(view=view)
 
