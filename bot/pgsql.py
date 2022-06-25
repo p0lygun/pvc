@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 import psycopg2
 from psycopg2 import sql
@@ -52,7 +52,7 @@ class ConnectionWrapper:
             id serial PRIMARY KEY,
             user_id bigint UNIQUE NOT NULL,
             channel_id bigint UNIQUE NOT NULL,
-            msg_id bigint UNIQUE NOT NULL
+            msg_id bigint UNIQUE default null
             );
         """)
         self.execute_query("""
@@ -71,7 +71,12 @@ class ConnectionWrapper:
         except psycopg2.errors.UndefinedTable:
             logger.debug("Table Does not exits.. skipping")
 
-    def get(self, columns: tuple[str, ...], conditions: dict[str, Any] | None = None, table: str = 'bot_data') -> psycopg2.extensions.cursor:
+    def get(
+            self,
+            columns: tuple[str, ...],
+            conditions: ValidColumns | None = None,
+            table: Literal["bot_data", 'vc_data'] = 'bot_data',
+    ) -> psycopg2.extensions.cursor:
         """
         A generic get function to get values from db
 
@@ -80,24 +85,31 @@ class ConnectionWrapper:
         :param table:
         :return: psycopg2.Cursor
         """
-
         format_kwargs = {
-            'columns': sql.SQL(',').join([sql.Identifier(i) for i in columns]),
+            'columns': sql.SQL(',').join([sql.Identifier(i) for i in columns])
+            if columns[0] != '*' else sql.SQL("*"),
+
             'table': sql.Identifier(table),
         }
         if conditions:
             format_kwargs.update(
                 {
                     'conditions': sql.SQL(',').join(
-                        [sql.SQL('=').join((key, value)) for key, value in conditions.items()]
+                        [
+                            sql.SQL('=').join((sql.Identifier(key), sql.Literal(value)))
+                            for key, value in conditions.items()
+                        ]
                     )
                 }
             )
-        query = sql.SQL("SELECT {columns} FROM {table} " + ("where {conditions}" if conditions else '')).format(**format_kwargs)
-        logger.debug(query.as_string(self.con))
+        # logger.debug(format_kwargs)
+        query = sql.SQL("SELECT {columns} FROM {table} " + ("where {conditions}" if conditions else '')).format(
+            **format_kwargs)
+        # logger.debug(query.as_string(self.con))
         return self.execute_query(query, commit=False)
 
-    def get_vc_data(self, columns: tuple[str, ...], condition: dict[str, Any] | None = None) -> psycopg2.extensions.cursor:
+    def get_vc_data(self, columns: tuple[str, ...],
+                    condition: dict[str, Any] | None = None) -> psycopg2.extensions.cursor:
         """
         A generic function to get values from table vc_data
 
@@ -152,7 +164,7 @@ class ConnectionWrapper:
 
         return self.execute_query(query)
 
-    def exists(self, where: tuple[str, Any],  table: str = 'bot_data') -> bool:
+    def exists(self, where: tuple[str, Any], table: str = 'bot_data') -> bool:
         # SELECT exists (SELECT 1 FROM table WHERE column = <value> LIMIT 1);
         query = sql.SQL(
             "SELECT exists (SELECT 1 FROM {table} WHERE {condition} LIMIT 1)"
@@ -171,7 +183,7 @@ class ConnectionWrapper:
         # from vc_data
         # WHERE channel_id={channel_id}
 
-        query = sql.SQL("DELETE from {table} where {condition}").format(
+        query = sql.SQL("DELETE from {table} where {conditions}").format(
             table=sql.Identifier(table),
             conditions=sql.SQL(',').join(
                 [
@@ -180,4 +192,3 @@ class ConnectionWrapper:
                 ])
         )
         return self.execute_query(query)
-
