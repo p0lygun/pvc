@@ -104,7 +104,7 @@ class CreateVC(commands.Cog):
                 if any(id_ == row[0] for row in cur.fetchall()):
                     chal = self.bot.get_channel(id_)
                     await chal.delete()
-                    self.bot.con.delete(channel_id=id_, vc_data=True)
+                    self.bot.con.delete(table='vc_data', conditions={'channel_id': id_})
                     logger.debug(f"Successfully deleted {chal}")
                     await ctx.interaction.response.send_message(f"Deleted {chal.name}")
             else:

@@ -110,7 +110,7 @@ class JoinHandler(commands.Cog):
                 if cur.rowcount:
                     if len(before.channel.members) == 0:
                         await before.channel.delete()
-                        self.bot.con.delete(channel_id=before.channel.id)
+                        self.bot.con.delete(table='bot_data', conditions={'channel_id': before.channel.id})
 
 
 def setup(bot: PVCBot):

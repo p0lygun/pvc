@@ -1,9 +1,19 @@
-from typing import Any
+from typing import Any, Optional
 
 import psycopg2
 from psycopg2 import sql
 from loguru import logger
 import os
+from typing import TypedDict
+
+
+class ValidColumns(TypedDict, total=False):
+    user_id: int
+    channel_id: int
+    guild_id: int
+    msg_id: int
+    type: str
+    name_format: str
 
 
 class ConnectionWrapper:
@@ -156,12 +166,18 @@ class ConnectionWrapper:
         with self.execute_query(query, commit=False) as curr:
             return curr.fetchone()[0]
 
-    def delete(self, user_id: int = None, channel_id: int = None, **kwargs):
-        if kwargs.get('vc-data', None):
-            return self.execute_query(f"""DELETE from vc_data
-            WHERE channel_id={channel_id}
-            """)
-        elif user_id or channel_id:
-            return self.execute_query(f"""DELETE from bot_data
-            WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
-            """)
+    def delete(self, table: str, conditions: ValidColumns):
+        # DELETE
+        # from vc_data
+        # WHERE channel_id={channel_id}
+
+        query = sql.SQL("DELETE from {table} where {condition}").format(
+            table=sql.Identifier(table),
+            conditions=sql.SQL(',').join(
+                [
+                    sql.SQL('=').join((sql.Identifier(key), sql.Literal(value)))
+                    for key, value in conditions.items()
+                ])
+        )
+        return self.execute_query(query)
+
