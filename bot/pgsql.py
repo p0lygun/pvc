@@ -1,9 +1,19 @@
-from typing import Any
+from typing import Any, Optional, Literal
 
 import psycopg2
 from psycopg2 import sql
 from loguru import logger
 import os
+from typing import TypedDict
+
+
+class ValidColumns(TypedDict, total=False):
+    user_id: int
+    channel_id: int
+    guild_id: int
+    msg_id: int
+    type: str
+    name_format: str
 
 
 class ConnectionWrapper:
@@ -42,7 +52,7 @@ class ConnectionWrapper:
             id serial PRIMARY KEY,
             user_id bigint UNIQUE NOT NULL,
             channel_id bigint UNIQUE NOT NULL,
-            msg_id bigint UNIQUE NOT NULL
+            msg_id bigint UNIQUE default null
             );
         """)
         self.execute_query("""
@@ -55,31 +65,60 @@ class ConnectionWrapper:
             );
         """)
 
-    def drop_table(self):
+    def __drop_table(self):
         try:
             self.execute_query("""DROP TABLE bot_data""")
         except psycopg2.errors.UndefinedTable:
             logger.debug("Table Does not exits.. skipping")
 
-    def get(self, user_id: int | None = None, channel_id: int | None = None, msg_id: int | None = None,
-            all_: bool = False) -> psycopg2.extensions.cursor:
-        execute_sql = ''
-        if all_:
-            execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data"""
+    def get(
+            self,
+            columns: tuple[str, ...],
+            conditions: ValidColumns | None = None,
+            table: Literal["bot_data", 'vc_data'] = 'bot_data',
+    ) -> psycopg2.extensions.cursor:
+        """
+        A generic get function to get values from db
 
-        if user_id or channel_id or msg_id:
-            execute_sql = f"""SELECT channel_id, user_id, msg_id from bot_data 
-            WHERE {'user_id' if user_id else 'channel_id' if channel_id else 'msg_id'}={user_id if user_id else channel_id if channel_id else msg_id}
-            """
-        if execute_sql:
-            return self.execute_query(execute_sql, commit=False)
+        :param columns:
+        :param conditions:
+        :param table:
+        :return: psycopg2.Cursor
+        """
+        format_kwargs = {
+            'columns': sql.SQL(',').join([sql.Identifier(i) for i in columns])
+            if columns[0] != '*' else sql.SQL("*"),
 
-    def get_vc_data(self, where: tuple, get: str):
-        if len(where) != 2:
-            raise ValueError("Invalid key mapping passed")
-        return self.execute_query(f"""SELECT {get} from vc_data 
-        WHERE {where[0]}={where[1]}
-        """, commit=False)
+            'table': sql.Identifier(table),
+        }
+        if conditions:
+            format_kwargs.update(
+                {
+                    'conditions': sql.SQL(',').join(
+                        [
+                            sql.SQL('=').join((sql.Identifier(key), sql.Literal(value)))
+                            for key, value in conditions.items()
+                        ]
+                    )
+                }
+            )
+        query = sql.SQL(
+            "SELECT {columns} FROM {table} " +
+            ("where {conditions}" if conditions else '')
+        ).format(**format_kwargs)
+
+        return self.execute_query(query, commit=False)
+
+    def get_vc_data(self, columns: tuple[str, ...],
+                    condition: dict[str, Any] | None = None) -> psycopg2.extensions.cursor:
+        """
+        A generic function to get values from table vc_data
+
+        :param columns:
+        :param condition:
+        :return:
+        """
+        return self.get(columns, condition, 'vc_data')
 
     def insert(self,
                user_id: int,
@@ -126,7 +165,7 @@ class ConnectionWrapper:
 
         return self.execute_query(query)
 
-    def exists(self, where: tuple[str, Any],  table: str = 'bot_data') -> bool:
+    def exists(self, where: tuple[str, Any], table: str = 'bot_data') -> bool:
         # SELECT exists (SELECT 1 FROM table WHERE column = <value> LIMIT 1);
         query = sql.SQL(
             "SELECT exists (SELECT 1 FROM {table} WHERE {condition} LIMIT 1)"
@@ -140,12 +179,17 @@ class ConnectionWrapper:
         with self.execute_query(query, commit=False) as curr:
             return curr.fetchone()[0]
 
-    def delete(self, user_id: int = None, channel_id: int = None, **kwargs):
-        if kwargs.get('vc-data', None):
-            return self.execute_query(f"""DELETE from vc_data
-            WHERE channel_id={channel_id}
-            """)
-        elif user_id or channel_id:
-            return self.execute_query(f"""DELETE from bot_data
-            WHERE {'user_id' if user_id else 'channel_id'}={user_id if user_id else channel_id}
-            """)
+    def delete(self, table: str, conditions: ValidColumns):
+        # DELETE
+        # from vc_data
+        # WHERE channel_id={channel_id}
+
+        query = sql.SQL("DELETE from {table} where {conditions}").format(
+            table=sql.Identifier(table),
+            conditions=sql.SQL(',').join(
+                [
+                    sql.SQL('=').join((sql.Identifier(key), sql.Literal(value)))
+                    for key, value in conditions.items()
+                ])
+        )
+        return self.execute_query(query)

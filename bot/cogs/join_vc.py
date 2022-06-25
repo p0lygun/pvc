@@ -20,7 +20,7 @@ class JoinHandler(commands.Cog):
                                     ):
         if after.channel is not None:
             cid = after.channel.id
-            with self.bot.con.get_vc_data(('channel_id', cid), 'type,name_format') as cur:
+            with self.bot.con.get_vc_data(('type', 'name_format'), {'channel_id': cid}) as cur:
                 # if joined a main channel
                 if cur.rowcount:
                     name_format: str
@@ -57,7 +57,7 @@ class JoinHandler(commands.Cog):
 
                     await member.move_to(tmp_vc)
 
-                    with self.bot.con.get(user_id=member.id) as cur:
+                    with self.bot.con.get(("channel_id",), conditions={'user_id': member.id}) as cur:
                         vc_id = None
                         if cur.rowcount:
                             vc_id = cur.fetchone()[0]
@@ -71,7 +71,6 @@ class JoinHandler(commands.Cog):
                     view.msg = msg
                     with self.bot.con.update('bot_data', ('user_id', member.id), msg_id=msg.id, returning='msg_id') as curr:
                         if curr.rowcount:
-                            logger.debug(curr)
                             old_msg_id = curr.fetchone()[0]
                     if vc_id is not None and vc_id != tmp_vc.id:
                         old_vc = member.guild.get_channel(vc_id)
@@ -93,24 +92,26 @@ class JoinHandler(commands.Cog):
                                 self.bot.con.insert(user_id=max_user.id, channel_id=vc_id, msg_id=old_msg_id)
                                 await old_vc.send(f"Ownership of this Channel is Transferred to {max_user.mention}")
                                 await self.ui_manager.update_ui(vc_id, allow_ownership=False)
+                # moved from a main voice channel
+                if before.channel is not None and self.bot.con.exists(('channel_id', before.channel.id), 'vc_data'):
+                    logger.debug(f"User {member} moved to {after.channel.name}{cid}")
+                # joined from  a separate chal
                 else:
-                    cur = self.bot.con.get(user_id=member.id)
+                    cur = self.bot.con.get(("channel_id",), conditions={'user_id': member.id})
                     info = cur.fetchone()
                     if cur.rowcount and info[0] == after.channel.id:
                         await self.ui_manager.update_ui(info[0], allow_ownership=False)
 
         if after.channel is None:
-            with self.bot.con.get(user_id=member.id) as cur:
+            with self.bot.con.get(("channel_id",), conditions={'user_id': member.id}) as cur:
                 if cur.rowcount:
                     info = cur.fetchone()
-                    logger.debug(info)
                     await self.ui_manager.update_ui(info[0])
         if before.channel is not None:
-            with self.bot.con.get(channel_id=before.channel.id) as cur:
-                if cur.rowcount:
-                    if len(before.channel.members) == 0:
-                        await before.channel.delete()
-                        self.bot.con.delete(channel_id=before.channel.id)
+            if self.bot.con.exists(('channel_id', before.channel.id), 'bot_data'):
+                if len(before.channel.members) == 0:
+                    await before.channel.delete()
+                    self.bot.con.delete(table='bot_data', conditions={'channel_id': before.channel.id})
 
 
 def setup(bot: PVCBot):

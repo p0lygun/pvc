@@ -22,7 +22,7 @@ class PVCBot(Bot):
         if not self.persistent_views_added:
             from .cogs.manage_vc_ui import UIView
             logger.debug("Trying to re-register all views")
-            with self.con.get(all_=True) as cur:
+            with self.con.get(("*",)) as cur:
                 for row in cur.fetchall():
                     self.add_view(UIView(self, channel_id=row[0], timeout=None), message_id=row[-1])
             logger.debug("registration successful")
