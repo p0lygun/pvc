@@ -24,7 +24,7 @@ class PVCBot(Bot):
             logger.debug("Trying to re-register all views")
             with self.con.get(("*",)) as cur:
                 for row in cur.fetchall():
-                    self.add_view(UIView(self, channel_id=row[0], timeout=None), message_id=row[-1])
+                    sboelf.add_view(UIView(self, channel_id=row[2], timeout=None), message_id=row[3])
             logger.debug("registration successful")
         logger.info(f"Logged in as {self.user} - {self.user.id}")
 
