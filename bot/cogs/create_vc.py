@@ -5,6 +5,7 @@ from discord.commands import Option
 from loguru import logger
 
 from ..utils.helper import project_base_path
+from ..libs.validtypes import ChannelNames
 from ..bot import PVCBot
 
 
@@ -21,13 +22,10 @@ def get_guild_main_vc(ctx: discord.AutocompleteContext):
         return []
 
 
-def filter_vc_type(ctx: discord.AutocompleteContext):
-    types_ = ["VC-NAME", "USERNAME"]
-    if ctx.interaction.guild.premium_tier > 0:
-        types_.append("ACTIVITY")
-    types_.append("CUSTOM")
-    return types_
+channel_types = [name.value for name in ChannelNames]
 
+
+# todo :- implement INCREMENT channel type
 
 class CreateVC(commands.Cog):
 
@@ -48,15 +46,19 @@ class CreateVC(commands.Cog):
                         name: Option(str, description="Name Of the Voice Channel"),
                         type_: Option(
                             str,
+                            name="type",
                             description="How the name of the created VC should be handled",
-                            autocomplete=discord.utils.basic_autocomplete(filter_vc_type)),
+                            autocomplete=discord.utils.basic_autocomplete(channel_types)
+                        ),
                         region: Option(str,
                                        description="Region in Which channel of this type should be made",
                                        autocomplete=discord.utils.basic_autocomplete(
-                                           discord.VoiceRegion._enum_member_names_),
+                                           [n.value for n in discord.VoiceRegion]
+                                       ),
                                        required=False
                                        ),
                         user_limit: Option(int,
+                                           name="max_users",
                                            description="Number of members that can be in a voice channel",
                                            required=False
                                            ),
@@ -65,10 +67,15 @@ class CreateVC(commands.Cog):
                                          required=False
                                          ),
                         custom_name: Option(str,
+                                            name="custom_name_format",
                                             description="Custom format that will be used to name the child VCs",
                                             required=False,
-                                            )
-
+                                            ),
+                        enable_activities: Option(bool,
+                                                  name="enable_activities",
+                                                  descripzion="Should activities be enabled in this channel",
+                                                  default=False
+                                                  )
                         ):
         logger.debug(f"Creating a {type_} type VC with name {name} "
                      f"in region {region if region else 'Automatic'}, with user_limit {user_limit}")
@@ -86,7 +93,9 @@ class CreateVC(commands.Cog):
             user_limit=user_limit,
             category=category,
         )
-        self.bot.con.insert_main(vc.id, type_, ctx.guild.id, custom_name)
+        self.bot.con.insert_main(vc.id, type_, ctx.guild.id, custom_name, enable_activities)
+        if type_ == "INCREMENT":
+            self.bot.con.insert_inc_data(vc.id)
         await ctx.respond(f"Successfully Created Main {vc.mention}")
 
     @delete.command(name='vc', description="Deletes the provided VC")

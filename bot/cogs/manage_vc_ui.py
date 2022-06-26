@@ -55,7 +55,7 @@ class NewNameInputModal(discord.ui.Modal):
 
 
 class ActivitySelector(discord.ui.Select):
-    def __init__(self, placeholder, callback_: callable):
+    def __init__(self, placeholder, callback_: callable, custom_id : str | None = None):
         options = [
             discord.SelectOption(
                 label=" ".join(map(str.capitalize, value.split("_"))),
@@ -68,7 +68,8 @@ class ActivitySelector(discord.ui.Select):
             placeholder=placeholder,
             min_values=1,
             max_values=1,
-            options=options
+            options=options,
+            custom_id=custom_id
         )
         self.callback_ = callback_
 
@@ -87,6 +88,7 @@ class UIView(discord.ui.View):
         super(UIView, self).__init__(timeout=timeout)
         self.channel_id = channel_id
         self.channel = self.bot.get_channel(self.channel_id)
+        self.owner_id = None
         with self.bot.con.get(("user_id",), {'channel_id': self.channel_id}) as cur:
             if cur.rowcount:
                 self.owner_id = cur.fetchone()[0]
@@ -108,13 +110,23 @@ class UIView(discord.ui.View):
             custom_id=f"claim-{channel_id}",
             disabled=not allow_ownership
         ))
-        with self.bot.con.get_vc_data(('type',), {'channel_id': self.channel_id}) as cur:
-            if cur.rowcount:
-                if self.channel.guild.premium_tier > 0 and cur.fetchone()[0] == 'ACTIVITY':
-                    self.add_item(ActivitySelector("Select a Activity", self.make_activity))
+        if self.owner_id:
+            query = f"SELECT activities_enabled from vc_data where channel_id = (SELECT parent_channel_id from bot_data where user_id={self.owner_id});"
+            with self.bot.con.execute_query(query, commit=False) as cur:
+                if cur.rowcount:
+                    if cur.fetchone()[0]:
+                        self.add_item(ActivitySelector(
+                            "Select a Activity",
+                            self.make_activity,
+                            custom_id=f"activity-{channel_id}"
+                        ))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.custom_id == f'claim-{self.channel_id}' or interaction.user.id == self.owner_id:
+        allowed_ids = [
+            f'claim-{self.channel_id}',
+            f'activity-{self.channel_id}'
+        ]
+        if interaction.custom_id in allowed_ids or interaction.user.id == self.owner_id:
             return True
         await interaction.response.send_message(f"Only <@{self.owner_id}> can change the Settings", ephemeral=True)
 
@@ -137,12 +149,17 @@ class UIView(discord.ui.View):
         await interaction.message.edit(view=self)
 
     async def transfer_ownership(self, interaction: discord.Interaction):
-        self.bot.con.insert(
+        # self.bot.con.insert(
+        #     user_id=interaction.user.id,
+        #     channel_id=interaction.channel_id,
+        #     msg_id=interaction.message.id,
+        #     update='user_id'
+        #
+        # )
+        self.bot.con.update(
+            'bot_data',
+            ('channel_id', interaction.channel_id),
             user_id=interaction.user.id,
-            channel_id=interaction.channel_id,
-            msg_id=interaction.message.id,
-            update='user_id'
-
         )
         self.owner_id = interaction.user.id
         await interaction.response.send_message(f"{interaction.user.mention} is the new owner of {interaction.channel}")

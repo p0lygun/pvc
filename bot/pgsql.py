@@ -11,6 +11,7 @@ class ValidColumns(TypedDict, total=False):
     user_id: int
     channel_id: int
     guild_id: int
+    parent_channel_id: int
     msg_id: int
     type: str
     name_format: str
@@ -52,7 +53,8 @@ class ConnectionWrapper:
             id serial PRIMARY KEY,
             user_id bigint UNIQUE NOT NULL,
             channel_id bigint UNIQUE NOT NULL,
-            msg_id bigint UNIQUE default null
+            msg_id bigint UNIQUE default null,
+            parent_channel_id bigint not null
             );
         """)
         self.execute_query("""
@@ -61,7 +63,14 @@ class ConnectionWrapper:
             channel_id bigint UNIQUE NOT NULL,
             type VARCHAR (10) NOT NULL,
             guild_id bigint NOT NULL,
-            name_format varchar (50)
+            name_format varchar (50),
+            activities_enabled bool default false not null
+            );
+        """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS increment_vc_data (
+            parent_channel_id bigint primary key ,
+            child_list text default '[0]'
             );
         """)
 
@@ -75,7 +84,7 @@ class ConnectionWrapper:
             self,
             columns: tuple[str, ...],
             conditions: ValidColumns | None = None,
-            table: Literal["bot_data", 'vc_data'] = 'bot_data',
+            table: Literal["bot_data", 'vc_data', "increment_vc_data"] = 'bot_data',
     ) -> psycopg2.extensions.cursor:
         """
         A generic get function to get values from db
@@ -123,25 +132,38 @@ class ConnectionWrapper:
     def insert(self,
                user_id: int,
                channel_id: int,
+               parent_channel_id: int,
                msg_id: int | None = None,
                update: str = 'channel_id'
                ):
         if update == 'channel_id':
             return self.execute_query(
-                f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
+                f"""INSERT INTO bot_data (user_id, channel_id, msg_id, parent_channel_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'}, {parent_channel_id})
             on conflict (user_id) do update set channel_id={channel_id}
             """)
         elif update == 'user_id':
             return self.execute_query(
-                f"""INSERT INTO bot_data (user_id, channel_id, msg_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'})
+                f"""INSERT INTO bot_data (user_id, channel_id, msg_id, parent_channel_id) values({user_id}, {channel_id}, {msg_id if msg_id else 'NULL'}, {parent_channel_id})
             on conflict (channel_id) do update set user_id={user_id}
             """)
 
-    def insert_main(self, channel_id: int, type_: str, guild_id: int, name_format: str = None):
-        return self.execute_query(f"""INSERT INTO vc_data (channel_id, type, guild_id, name_format)
-        values({channel_id},'{type_}', {guild_id}, '{name_format if name_format else 'NULL'}')
+    def insert_main(self,
+                    channel_id: int,
+                    type_: str,
+                    guild_id: int,
+                    name_format: str = None,
+                    activities_enabled: bool | None = None
+                    ):
+        return self.execute_query(f"""INSERT INTO vc_data (channel_id, type, guild_id, name_format, activities_enabled)
+        values({channel_id},'{type_}', {guild_id}, '{name_format if name_format else 'NULL'}', {activities_enabled})
         on conflict (channel_id) do nothing 
         """)
+
+    def insert_inc_data(self, parent_channel_id: int):
+        query = sql.SQL("INSERT INTO increment_vc_data (parent_channel_id) VALUES ({parent_channel_id})").format(
+            parent_channel_id=sql.Literal(parent_channel_id)
+        )
+        return self.execute_query(query)
 
     def update(self, table: str, where: tuple[str, Any], returning: str | None = None, **kwargs):
         update_fields = []
