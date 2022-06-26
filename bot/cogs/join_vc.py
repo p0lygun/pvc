@@ -1,3 +1,5 @@
+import json
+
 import discord
 from discord.ext import commands
 from loguru import logger
@@ -5,6 +7,7 @@ from loguru import logger
 from ..bot import PVCBot
 from .manage_vc_ui import ManageUI
 from ..utils.helper import random_emoji
+from ..libs.validtypes import ChannelNames
 
 
 class JoinHandler(commands.Cog):
@@ -27,7 +30,7 @@ class JoinHandler(commands.Cog):
                     type_, name_format = cur.fetchone()
                     if type_ == "VC-NAME":
                         vc_name = after.channel.name
-                    elif type_ == "CUSTOM":
+                    elif type_ == ChannelNames.custom or type_ == ChannelNames.increment:
                         if name_format:
                             vc_name = name_format.replace(
                                 "$user$", member.name
@@ -41,6 +44,27 @@ class JoinHandler(commands.Cog):
                                 "$self$",
                                 after.channel.name
                             )
+                            if type_ == ChannelNames.increment:
+                                curr = self.bot.con.get(
+                                    ('child_list',),
+                                    {'parent_channel_id': cid},
+                                    table="increment_vc_data"
+                                )
+                                if cur.rowcount:
+                                    child_list = json.loads(curr.fetchone()[0])
+                                    curr.close()
+                                    if before.channel is not None and before.channel.id in child_list:
+                                        if len(before.channel.members) == 0:
+                                            child_list[child_list.index(before.channel.id)] = 0
+                                    try:
+                                        index = child_list.index(0)
+                                        to_append = False
+                                    except ValueError:
+                                        index = len(child_list)
+                                        to_append = True
+                                    if index != -1:
+                                        vc_name = vc_name.replace("$index$", str(index + 1))
+
                         else:
                             vc_name = str(member)
                     else:
@@ -53,6 +77,17 @@ class JoinHandler(commands.Cog):
                         user_limit=after.channel.user_limit,
                         category=after.channel.category
                     )
+                    if type_ == "INCREMENT":
+                        if not to_append:
+                            child_list[index] = tmp_vc.id
+                        else:
+                            child_list.append(tmp_vc.id)
+                        self.bot.con.update(
+                            'increment_vc_data',
+                            ('parent_channel_id', cid),
+                            child_list=json.dumps(child_list)
+                        ).close()
+
                     await tmp_vc.set_permissions(member, manage_channels=True)
 
                     await member.move_to(tmp_vc)
@@ -62,14 +97,15 @@ class JoinHandler(commands.Cog):
                         if cur.rowcount:
                             vc_id = cur.fetchone()[0]
 
-                    self.bot.con.insert(member.id, tmp_vc.id, cid, msg_id=None,)
+                    self.bot.con.insert(member.id, tmp_vc.id, cid, msg_id=None, )
                     view = self.ui_manager.get_view(tmp_vc.id, timeout=None)
                     msg = await tmp_vc.send(
                         content=f"Manage VC settings here {member.mention}",
                         view=view
                     )
                     view.msg = msg
-                    with self.bot.con.update('bot_data', ('user_id', member.id), msg_id=msg.id, returning='msg_id') as curr:
+                    with self.bot.con.update('bot_data', ('user_id', member.id), msg_id=msg.id,
+                                             returning='msg_id') as curr:
                         if curr.rowcount:
                             old_msg_id = curr.fetchone()[0]
                     if vc_id is not None and vc_id != tmp_vc.id:
@@ -113,10 +149,29 @@ class JoinHandler(commands.Cog):
                     info = cur.fetchone()
                     await self.ui_manager.update_ui(info[0])
         if before.channel is not None:
-            if self.bot.con.exists(('channel_id', before.channel.id), 'bot_data'):
-                if len(before.channel.members) == 0:
+            if len(before.channel.members) == 0:
+                if self.bot.con.exists(('channel_id', before.channel.id), 'bot_data'):
+                    with self.bot.con.get(('parent_channel_id',), {'channel_id': before.channel.id}, 'bot_data') as cur:
+                        parent_channel_id = cur.fetchone()[0] if cur.rowcount else None
+
                     await before.channel.delete()
                     self.bot.con.delete(table='bot_data', conditions={'channel_id': before.channel.id})
+                    if parent_channel_id is not None:
+                        parent_channel_id: int
+                        child_list: list | None
+                        with self.bot.con.get(
+                                ('child_list',),
+                                {'parent_channel_id': parent_channel_id},
+                                'increment_vc_data') as cur:
+                            child_list = json.loads(cur.fetchone()[0]) if cur.rowcount else None
+
+                        if child_list and before.channel.id in child_list:
+                            child_list[child_list.index(before.channel.id)] = 0
+                            self.bot.con.update(
+                                'increment_vc_data',
+                                ('parent_channel_id', parent_channel_id),
+                                child_list=json.dumps(child_list)
+                            ).close()
 
 
 def setup(bot: PVCBot):

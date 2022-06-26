@@ -5,6 +5,7 @@ from discord.commands import Option
 from loguru import logger
 
 from ..utils.helper import project_base_path
+from ..libs.validtypes import ChannelNames
 from ..bot import PVCBot
 
 
@@ -21,7 +22,7 @@ def get_guild_main_vc(ctx: discord.AutocompleteContext):
         return []
 
 
-channel_types = ["VC-NAME", "USERNAME", "CUSTOM", "INCREMENT"]
+channel_types = [name.value for name in ChannelNames]
 
 
 # todo :- implement INCREMENT channel type
@@ -52,7 +53,8 @@ class CreateVC(commands.Cog):
                         region: Option(str,
                                        description="Region in Which channel of this type should be made",
                                        autocomplete=discord.utils.basic_autocomplete(
-                                           discord.VoiceRegion._enum_member_names_),
+                                           [n.value for n in discord.VoiceRegion]
+                                       ),
                                        required=False
                                        ),
                         user_limit: Option(int,
@@ -92,6 +94,8 @@ class CreateVC(commands.Cog):
             category=category,
         )
         self.bot.con.insert_main(vc.id, type_, ctx.guild.id, custom_name, enable_activities)
+        if type_ == "INCREMENT":
+            self.bot.con.insert_inc_data(vc.id)
         await ctx.respond(f"Successfully Created Main {vc.mention}")
 
     @delete.command(name='vc', description="Deletes the provided VC")

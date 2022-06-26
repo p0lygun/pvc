@@ -11,6 +11,7 @@ class ValidColumns(TypedDict, total=False):
     user_id: int
     channel_id: int
     guild_id: int
+    parent_channel_id: int
     msg_id: int
     type: str
     name_format: str
@@ -66,6 +67,12 @@ class ConnectionWrapper:
             activities_enabled bool default false not null
             );
         """)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS increment_vc_data (
+            parent_channel_id bigint primary key ,
+            child_list text default '[0]'
+            );
+        """)
 
     def __drop_table(self):
         try:
@@ -77,7 +84,7 @@ class ConnectionWrapper:
             self,
             columns: tuple[str, ...],
             conditions: ValidColumns | None = None,
-            table: Literal["bot_data", 'vc_data'] = 'bot_data',
+            table: Literal["bot_data", 'vc_data', "increment_vc_data"] = 'bot_data',
     ) -> psycopg2.extensions.cursor:
         """
         A generic get function to get values from db
@@ -151,6 +158,12 @@ class ConnectionWrapper:
         values({channel_id},'{type_}', {guild_id}, '{name_format if name_format else 'NULL'}', {activities_enabled})
         on conflict (channel_id) do nothing 
         """)
+
+    def insert_inc_data(self, parent_channel_id: int):
+        query = sql.SQL("INSERT INTO increment_vc_data (parent_channel_id) VALUES ({parent_channel_id})").format(
+            parent_channel_id=sql.Literal(parent_channel_id)
+        )
+        return self.execute_query(query)
 
     def update(self, table: str, where: tuple[str, Any], returning: str | None = None, **kwargs):
         update_fields = []
