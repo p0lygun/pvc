@@ -7,7 +7,7 @@ from loguru import logger
 from ..bot import PVCBot
 from .manage_vc_ui import ManageUI
 from ..utils.helper import random_emoji
-from ..libs.validtypes import ChannelNames
+from ..libs import validtypes
 
 
 class JoinHandler(commands.Cog):
@@ -28,9 +28,9 @@ class JoinHandler(commands.Cog):
                 if cur.rowcount:
                     name_format: str
                     type_, name_format = cur.fetchone()
-                    if type_ == "VC-NAME":
+                    if type_ == validtypes.ChannelNames.vc_name:
                         vc_name = after.channel.name
-                    elif type_ == ChannelNames.custom or type_ == ChannelNames.increment:
+                    elif type_ == validtypes.ChannelNames.custom or type_ == validtypes.ChannelNames.increment:
                         if name_format:
                             vc_name = name_format.replace(
                                 "$user$", member.name
@@ -44,7 +44,7 @@ class JoinHandler(commands.Cog):
                                 "$self$",
                                 after.channel.name
                             )
-                            if type_ == ChannelNames.increment:
+                            if type_ == validtypes.ChannelNames.increment:
                                 curr = self.bot.con.get(
                                     ('child_list',),
                                     {'parent_channel_id': cid},
@@ -77,7 +77,7 @@ class JoinHandler(commands.Cog):
                         user_limit=after.channel.user_limit,
                         category=after.channel.category
                     )
-                    if type_ == "INCREMENT":
+                    if type_ == validtypes.ChannelNames.increment:
                         if not to_append:
                             child_list[index] = tmp_vc.id
                         else:
